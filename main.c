@@ -1,3 +1,13 @@
+/*      EXPERIMENTO 1
+ *   Autores:
+ *      Daniel Pereira Ferragut - RA:169488
+ *      Lucas Koiti Geminiani Tamanaha - RA:182579
+ *
+ *      Observações: Devido ao estranho corpotamento das funções pthread_cond e pthread_signal,
+ *      foi escolhido trabalhar apenas com um mutex que controla todas as threads.
+ * */
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,13 +29,14 @@ pthread_t dir_array[4];
 pthread_attr_t attr;
 Queue* priority_queue[4];
 
-int car_crossed = 0;
-int should_cross[4] = {0,0,0,0};
-int bit_mask[4];
-int total_car_number = 0;
-int done = 0;
-int starved = 0;
-int K = 2;
+int car_crossed = 0;        // When a car crosses this var is set
+int should_cross[4] = {0,0,0,0};   // Alternative bit mask that warns what thread should cross
+int bit_mask[4];            // Bit mask for threads to see other BATS at the crossing
+int total_car_number = 0;   // Var to keep track of all cars that passed
+int done = 0;               // If this var is set, the line is processed
+int starved = 0;            // Var to check if a thread wants to pass its permission to cross
+int K = 2;                  // Max number to starve
+
 
 int main() {
     char    *buffer;
@@ -34,9 +45,18 @@ int main() {
     initialize_thread_array();
     char* k_string;
     int k_int;
-    // While an empty line is not read, continue reading
+
+/*  For every line BATMAN is going to be called to process it.
+ *  It was chosen not to do a fully unblockable reading of the inputs because on
+ *  most of the cases, working only with 5 threads, the new BATS would interrupt the current ones
+ *  making inconsistent with the experiment's  statement.
+ *
+ *  It would be possible to process each line on its own (fully unblockable) but then for
+ *  each line, 5 threads would be required to process it, not a very scalable solution.
+ * */
     while(getline(&buffer, &n, stdin) != 1){
         done = 0;
+//        If we want to change K's value
         if (buffer[0] == 'K'){
             k_string = &buffer[2];
             char* new_line;
@@ -47,6 +67,7 @@ int main() {
             BAT_manager(buffer);
         }
     }
+//    Free everything
     free(buffer);
     BAT_manager_destroy();
     return 0;
@@ -55,7 +76,7 @@ int main() {
 // Main function for the BAT manager
 void* BAT_manager(char* dir_string){
     int i = 0;
-//    Putting all the cars in their respective queues
+//  Every bat is going to the pushed to their respective queues in order of arrival.
     char current_dir = dir_string[0];
     BAT* current_car;
     Directions enum_current_dir;
@@ -68,12 +89,15 @@ void* BAT_manager(char* dir_string){
 
 //    Init BAT queues and vars
     BAT_manager_init();
-//    BAT main loop, done is set by check_for_conflicts
+
+//    BAT main loop, First we check if new cars can be put at the crossing
+//      Second we check if there is a conflict at the crossing.
     while(!done){
         check_for_new_cars();
         check_for_conflict();
     }
 
+//    Lets guarantee that every thread is done by the time BATMAN is done too
     for (i = 0; i < 4; i++) {
         pthread_join(dir_array[i], NULL);
     }
@@ -104,12 +128,15 @@ void check_for_conflict(){
         pthread_mutex_lock(&mutex);
         for(int i = 0; i<4; i++){
             if (bit_mask[i]){
+//                A queue is chosen to cross due to the priority order
                 should_cross[i] = 1;
 
+//                Equivalent to pthread_cond_wait, is going to wait for a car to cross
                 pthread_mutex_unlock(&mutex);
                 while(car_crossed == 0) {}
                 pthread_mutex_lock(&mutex);
 
+//                Reseting some vars for next iteration
                 should_cross[i] = 0;
                 car_crossed = 0;
                 bit_mask[i] = 0;
@@ -117,6 +144,7 @@ void check_for_conflict(){
         }
         pthread_mutex_unlock(&mutex);
     }
+
 //    If there is a conflict
 //      For each bit in the bitmask, try to signal the best queue
 //      Wait for possible starvation (global var)
@@ -124,6 +152,7 @@ void check_for_conflict(){
 //      If there is starvation, try to find next queue
 //      Worst case, signal goes to the same BAT, but now it accepts (because only one pass is admitted for each BAT)
     else{
+//        Initial print of the problem
         printf("Impasses: ");
         int first = 1;
         for (int i = 0; i<4; i++){
@@ -136,6 +165,12 @@ void check_for_conflict(){
             }
         }
 
+        /* Main logic of conflict resolution
+         *  current_dir is going to find the best car to cross
+         *
+         *
+         *
+         * */
         int current_dir = -1;
         int starved_print = 0;
         pthread_mutex_lock(&mutex);
@@ -144,17 +179,21 @@ void check_for_conflict(){
             current_dir = current_dir % 4;
             if (bit_mask[current_dir] != 0){
                 should_cross[current_dir] = 1;
+
+//                If this iteration is not a starvation continue
                 if (starved_print == 0){
                     printf(" sinalizando %c para ir\n", enum_to_chr(current_dir));
                 }
 
+//                Waiting for the car to pass, or for the starvation flag to be set
                 pthread_mutex_unlock(&mutex);
                 while (car_crossed == 0 && starved == 0){}
                 pthread_mutex_lock(&mutex);
 
+//                If there is starvation, continue to next best queue
                 if (starved){
-                    starved = 0;
-                    starved_print = 1;
+                    starved = 0;    // Reset global var
+                    starved_print = 1;  // Next iteration is a starvation result, don't print normally
                     should_cross[current_dir] = 0;
                     BAT* next_bat;
                     BAT* starved_bat = (BAT*)peek(priority_queue[current_dir]);
@@ -169,6 +208,7 @@ void check_for_conflict(){
                 }
             }
         }
+//        Reset relevant vars
         should_cross[current_dir] = 0;
         bit_mask[current_dir] = 0;
         car_crossed = 0;
@@ -176,9 +216,10 @@ void check_for_conflict(){
     }
 }
 
-/*  Function that deals with each queue's logic
+/*  Function that deals with each queue's thread's logic
  * */
 void* queue_thread(void* arg){
+//    initialization
     Directions* dir_ptr = (Directions*) arg;
     Directions queue_dir = *dir_ptr;
     Queue* queue = priority_queue[queue_dir];
@@ -189,6 +230,7 @@ void* queue_thread(void* arg){
 //    While this thread's queue is not empty
     while(queue->size != 0){
         current_car = (BAT*)peek(queue);
+
 //        Waiting for permission to cross
         pthread_mutex_lock(&mutex);
         while (should_cross[queue_dir] == 0){
@@ -196,15 +238,16 @@ void* queue_thread(void* arg){
             pthread_mutex_lock(&mutex);
         }
 
+//        Check for conflict and starvation
         int conflict = bit_mask[0] + bit_mask[1] + bit_mask[2] + bit_mask[3];
         if ((queue->size > K) && (current_car->starved_bool == 0) && (conflict > 1)){
-            current_car->starved_bool = 1;
+            current_car->starved_bool = 1;   //BAT starvation flag gets set
             starved = 1;
         } else{
-            cross(current_car);
+            cross(current_car);      //BAT gets to cross
             car_crossed = 1;
         }
-        should_cross[queue_dir] = 0;
+        should_cross[queue_dir] = 0;  //Warn this thread itself, that a cross should not be made again
         pthread_mutex_unlock(&mutex);
     }
     pthread_exit(NULL);

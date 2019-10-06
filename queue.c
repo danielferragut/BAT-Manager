@@ -14,20 +14,20 @@ typedef struct QueueStruct{
     QueueItem* firstItem;
 } Queue ;
 
-// Functions
-Queue* create_queue();
-void push(Queue* queue, void* new_item);
-QueueItem* pop(Queue* queue);
-int is_empty(Queue* queue);
-QueueItem* peek(Queue* queue);
-
-
 Queue* create_queue(){
     Queue* new_queue = malloc(sizeof(Queue));
     new_queue->size = 0;
     new_queue->firstItem = NULL;
     return new_queue;
 }
+
+int is_empty(Queue* queue){
+    if (queue->size == 0)
+        return 1;
+    else
+        return 0;
+}
+
 
 
 /*   Push a value to the end of the Queue
@@ -62,9 +62,9 @@ QueueItem* pop(Queue* queue){
     free(current_node);
     queue->size--;
     return current_node->item;
-
 }
 
+//See what item is first on the list, but doesnt delete it
 QueueItem* peek(Queue* queue){
     if (is_empty(queue)){
         return NULL;
@@ -72,11 +72,4 @@ QueueItem* peek(Queue* queue){
     QueueItem* current_node = queue->firstItem;
     return current_node->item;
 
-}
-
-int is_empty(Queue* queue){
-    if (queue->size == 0)
-        return 1;
-    else
-        return 0;
 }
