@@ -24,13 +24,13 @@ git clone https://github.com/danielferragut/BAT-Manager
 
 Change directories to the new *BAT-Manager* directory created.
 
-To compile, run the *GCC* as:
+To compile, just run the Makefile as:
 ```
-gcc main.c -o main -lpthread
+make all
 ```
 Then just run the program:
 ```
-./main
+./batman
 ```
 
 

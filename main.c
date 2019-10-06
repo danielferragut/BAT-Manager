@@ -54,7 +54,7 @@ int main() {
  *  It would be possible to process each line on its own (fully unblockable) but then for
  *  each line, 5 threads would be required to process it, not a very scalable solution.
  * */
-    while(getline(&buffer, &n, stdin) != 1){
+    while(getline(&buffer, &n, stdin) != -1){
         done = 0;
 //        If we want to change K's value
         if (buffer[0] == 'K'){
@@ -62,6 +62,8 @@ int main() {
             char* new_line;
             k_int = (int)strtol(k_string, &new_line,10);
             K = k_int;
+        } else if (buffer[0] == 0x0A){
+            break;
         }
         else{
             BAT_manager(buffer);

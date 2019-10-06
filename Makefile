@@ -1,4 +1,4 @@
-TARGET = main
+TARGET = batman
 CC = gcc
 CFLAGS = -Wall -pedantic-errors -g
 LIBS = -lm -lpthread
