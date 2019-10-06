@@ -4,7 +4,6 @@
 #include <pthread.h>
 #include "bats.h"
 #include "queue.h"
-#include "global.h"
 
 void initialize_thread_array();
 void BAT_manager_init();
@@ -12,6 +11,21 @@ void* BAT_manager(char* dir_string);
 void* queue_thread(void* arg);
 void check_for_conflict();
 void BAT_manager_destroy();
+
+
+// Global variables
+pthread_mutex_t mutex;
+pthread_t dir_array[4];
+pthread_attr_t attr;
+Queue* priority_queue[4];
+
+int car_crossed = 0;
+int should_cross[4] = {0,0,0,0};
+int bit_mask[4];
+int total_car_number = 0;
+int done = 0;
+int starved = 0;
+int K = 2;
 
 int main() {
     char    *buffer;
@@ -208,8 +222,8 @@ void BAT_manager_init(){
 
 void initialize_thread_array(){
     pthread_mutex_init(&mutex, NULL);
-//    pthread_attr_init(&attr);
-//    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
 
     Queue* north = create_queue();
